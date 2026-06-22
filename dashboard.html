@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <title>Dashboard</title>
+</head>
+
+<body class="bg-transparent w-full h-screen p-2 font-sans">
+
+<div class="w-full h-full bg-white border border-slate-200 rounded-2xl shadow-sm p-5 flex flex-col">
+
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 border-b border-slate-100 pb-4">
+
+        <div>
+            <h2
+                id="dashboardTitle"
+                class="text-xl font-bold text-slate-900"
+            >
+                Loading Dashboard...
+            </h2>
+
+            <p class="text-xs text-slate-500 mt-1">
+                Interactive Analytics Dashboard
+            </p>
+        </div>
+
+        <div class="flex gap-2">
+
+            <select
+                id="chartType"
+                class="bg-slate-50 border border-slate-200 rounded-xl p-2 text-sm"
+            >
+                <option value="bar">📊 Bar Chart</option>
+                <option value="line">📈 Line Chart</option>
+                <option value="pie">🥧 Pie Chart</option>
+            </select>
+
+            <select
+                id="itemFilter"
+                class="bg-slate-50 border border-slate-200 rounded-xl p-2 text-sm"
+            >
+                <option value="all">🌐 Show All Items</option>
+            </select>
+
+        </div>
+
+    </div>
+
+    <div
+        class="flex-1 min-h-[500px] relative bg-slate-50 rounded-xl border border-slate-200 p-2"
+    >
+        <canvas id="canvasChartEngine"></canvas>
+    </div>
+
+</div>
+
+<script type="module">
+
+import { App } from "https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps";
+
+const mcpApp = new App({
+    name: "Universal Dashboard",
+    version: "1.0.0"
+});
+
+let datasetLabels = [];
+let datasetValues = [];
+let currentMetric = "Value";
+
+let chartInstance = null;
+
+const canvas = document.getElementById("canvasChartEngine");
+const ctx = canvas.getContext("2d");
+
+function renderVisualizationState() {
+
+    if (!datasetLabels.length) return;
+
+    const chartType =
+        document.getElementById("chartType").value;
+
+    const filterValue =
+        document.getElementById("itemFilter").value;
+
+    let labels = [...datasetLabels];
+    let values = [...datasetValues];
+
+    if (filterValue !== "all") {
+
+        const index = Number(filterValue);
+
+        labels = [datasetLabels[index]];
+        values = [datasetValues[index]];
+    }
+
+    if (chartInstance) {
+        chartInstance.destroy();
+    }
+
+    const isPie = chartType === "pie";
+
+    chartInstance = new Chart(ctx, {
+        type: chartType,
+
+        data: {
+            labels,
+
+            datasets: [{
+                label: currentMetric,
+                data: values,
+
+                backgroundColor: isPie
+                    ? [
+                        "#3b82f6",
+                        "#10b981",
+                        "#f59e0b",
+                        "#ef4444",
+                        "#8b5cf6",
+                        "#ec4899",
+                        "#14b8a6",
+                        "#f97316"
+                    ]
+                    : "#3b82f6",
+
+                borderColor: isPie
+                    ? "#ffffff"
+                    : "#2563eb",
+
+                borderWidth: isPie ? 2 : 1,
+                borderRadius: isPie ? 0 : 8
+            }]
+        },
+
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+                legend: {
+                    display: isPie,
+                    position: "bottom"
+                }
+            },
+
+            scales: isPie
+                ? {}
+                : {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+        }
+    });
+}
+
+document
+    .getElementById("chartType")
+    .addEventListener("change", renderVisualizationState);
+
+document
+    .getElementById("itemFilter")
+    .addEventListener("change", renderVisualizationState);
+
+/*
+ * FastMCP Tool Result Handler
+ */
+mcpApp.ontoolresult = (result) => {
+
+    console.log("Tool Result:", result);
+
+    try {
+
+        let payload = null;
+
+        if (result.content) {
+
+            const textContent = result.content.find(
+                c => c.type === "text"
+            );
+
+            if (textContent?.text) {
+
+                payload =
+                    typeof textContent.text === "string"
+                        ? JSON.parse(textContent.text)
+                        : textContent.text;
+            }
+        }
+
+        if (!payload) {
+            console.error("No payload found");
+            return;
+        }
+
+        document.getElementById(
+            "dashboardTitle"
+        ).textContent = payload.title || "Dashboard";
+
+        datasetLabels = payload.labels || [];
+        datasetValues = payload.values || [];
+        currentMetric = payload.metric || "Value";
+
+        const filter =
+            document.getElementById("itemFilter");
+
+        filter.innerHTML =
+            '<option value="all">🌐 Show All Items</option>';
+
+        datasetLabels.forEach((label, index) => {
+
+            const option =
+                document.createElement("option");
+
+            option.value = index;
+            option.textContent = `Focus: ${label}`;
+
+            filter.appendChild(option);
+        });
+
+        renderVisualizationState();
+
+    } catch (error) {
+
+        console.error(
+            "Failed to process MCP payload:",
+            error
+        );
+
+        document.getElementById(
+            "dashboardTitle"
+        ).textContent =
+            "Payload Processing Error";
+    }
+};
+
+await mcpApp.connect();
+
+</script>
+
+</body>
+</html>
